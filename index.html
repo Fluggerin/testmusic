@@ -599,10 +599,6 @@
                 <i data-lucide="library" class="w-4 h-4"></i>
                 <span class="text-[10px] font-medium">Альбомы</span>
             </button>
-            <button onclick="switchTab('upload')" data-tab="upload" class="nav-btn flex flex-col items-center justify-center gap-1 py-1 px-3 text-zinc-500 transition">
-                <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                <span class="text-[10px] font-medium">Загрузить</span>
-            </button>
             <button onclick="switchTab('custom')" data-tab="custom" class="nav-btn flex flex-col items-center justify-center gap-1 py-1 px-3 text-zinc-500 transition">
                 <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
                 <span class="text-[10px] font-medium">Стиль</span>
@@ -914,56 +910,56 @@
         // ==========================================
         // 4. PRELOADED DEMO TRACKS & APP STATE
         // ==========================================
-        let tracks = [
-            {
-                id: 't1',
-                title: 'Nocturne I',
-                artist: 'Klangwerk',
-                album: 'Monolith EP',
-                year: '2026',
-                duration: 186,
-                favorite: true,
-                cover: generateMinimalCover('N1', 'eclipse'),
-                audioUrl: null,
-                synthPreset: { bpm: 118, rootFreq: 65.41, scale: [1, 1.189, 1.334, 1.498, 1.781] }
-            },
-            {
-                id: 't2',
-                title: 'Concrete Horizon',
-                artist: 'Klangwerk',
-                album: 'Monolith EP',
-                year: '2026',
-                duration: 214,
-                favorite: false,
-                cover: generateMinimalCover('CH', 'monolith'),
-                audioUrl: null,
-                synthPreset: { bpm: 124, rootFreq: 73.42, scale: [1, 1.122, 1.334, 1.498, 1.681] }
-            },
-            {
-                id: 't3',
-                title: 'Subzero Drift',
-                artist: 'Nordic State',
-                album: 'Greyscale',
-                year: '2025',
-                duration: 172,
-                favorite: true,
-                cover: generateMinimalCover('SD', 'grid'),
-                audioUrl: null,
-                synthPreset: { bpm: 102, rootFreq: 55.0, scale: [1, 1.189, 1.498, 1.781, 2.0] }
-            },
-            {
-                id: 't4',
-                title: 'Iron Pulse',
-                artist: 'Vektor',
-                album: 'Raw Signal',
-                year: '2026',
-                duration: 198,
-                favorite: false,
-                cover: generateMinimalCover('IP', 'monolith'),
-                audioUrl: null,
-                synthPreset: { bpm: 130, rootFreq: 61.74, scale: [1, 1.059, 1.334, 1.498, 1.587] }
+        // ---- НАСТРОЙКА: адрес твоего Cloudflare Worker (без слэша в конце) ----
+        const WORKER_URL = 'https://music-api.ВАШ-АККАУНТ.workers.dev';
+        // -----------------------------------------------------------------------
+        const AUTH = encodeURIComponent(tg?.initData || '');
+        const FAV_KEY = 'sv_favorites_v1';
+
+        function loadFavs() {
+            try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); }
+            catch (e) { return new Set(); }
+        }
+        function saveFavs() {
+            try { localStorage.setItem(FAV_KEY, JSON.stringify(tracks.filter(t => t.favorite).map(t => t.id))); }
+            catch (e) {}
+        }
+
+        let tracks = [];
+
+        async function loadCatalog() {
+            if (!tg?.initData) {
+                showToast('Открой приложение через бота в Telegram');
+                return;
             }
-        ];
+            try {
+                const r = await fetch(`${WORKER_URL}/api/tracks?auth=${AUTH}`);
+                if (!r.ok) throw new Error(r.status);
+                const list = await r.json();
+                const favs = loadFavs();
+                tracks = list.reverse().map(t => ({
+                    id: t.id,
+                    title: t.title,
+                    artist: t.artist,
+                    album: t.album,
+                    year: t.year,
+                    duration: t.duration,
+                    favorite: favs.has(t.id),
+                    cover: t.hasCover
+                        ? `${WORKER_URL}/api/cover/${t.id}?auth=${AUTH}`
+                        : generateMinimalCover(t.title, 'monolith'),
+                    audioUrl: `${WORKER_URL}/api/audio/${t.id}?auth=${AUTH}`
+                }));
+                state.currentTrackIndex = 0;
+                renderTrackList();
+                renderArtistsGrid();
+                renderAlbumsGrid();
+                updatePlayerUI();
+                if (!tracks.length) showToast('В канале пока нет треков');
+            } catch (e) {
+                showToast('Не удалось загрузить каталог');
+            }
+        }
 
         let state = {
             currentTrackIndex: 0,
@@ -1459,6 +1455,7 @@
             const tr = tracks.find(t => t.id === id);
             if (tr) {
                 tr.favorite = !tr.favorite;
+                saveFavs();
                 renderTrackList();
                 updatePlayerUI();
                 showToast(tr.favorite ? 'Добавлено в избранное' : 'Убрано из избранного');
@@ -1728,6 +1725,7 @@
             renderTrackList();
             updatePlayerUI();
             startVisualizerLoop();
+            loadCatalog();
             lucide.createIcons();
 
             // Launch splash animation on startup
