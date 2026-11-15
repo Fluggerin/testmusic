@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NOIR // Telegram Music Mini App</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Clean Editorial & Monospace Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --accent: #e4e4e7;
+            --accent-contrast: #09090b;
+            --accent-glow: rgba(255, 255, 255, 0.14);
+            --accent-soft: rgba(255, 255, 255, 0.08);
+            --bg-outer: #050506;
+            --bg-main: #09090b;
+            --bg-surface: #111114;
+            --bg-elevated: #18181c;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.16);
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --text-muted: #52525b;
+            --cover-radius: 10px;
+        }
+
+        /* Background Tone Presets */
+        body.bg-obsidian {
+            --bg-main: #09090b;
+            --bg-surface: #111114;
+            --bg-elevated: #18181c;
+        }
+        body.bg-carbon {
+            --bg-main: #121215;
+            --bg-surface: #18181c;
+            --bg-elevated: #202026;
+        }
+        body.bg-oled {
+            --bg-main: #000000;
+            --bg-surface: #0a0a0c;
+            --bg-elevated: #121215;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .font-mono-code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden;
+            background-color: var(--bg-outer);
+            color: var(--text-primary);
+            user-select: none;
+        }
+
+        /* App Shell (Mobile-first, centered on desktop) */
+        #app-shell {
+            background-color: var(--bg-main);
+            border-left: 1px solid var(--border-subtle);
+            border-right: 1px solid var(--border-subtle);
+            transition: background-color 0.25s ease;
+        }
+
+        /* Minimal Scrollbar */
+        ::-webkit-scrollbar { width: 3px; height: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 99px; }
+
+        /* Dynamic Accent Utilities */
+        .accent-text { color: var(--accent); }
+        .accent-bg { background-color: var(--accent); color: var(--accent-contrast); }
+        .accent-soft-bg { background-color: var(--accent-soft); }
+        .accent-border { border-color: var(--accent); }
+
+        .surface-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.12s ease;
+        }
+        .surface-card:hover {
+            border-color: var(--border-strong);
+        }
+
+        .cover-img {
+            border-radius: var(--cover-radius);
+            transition: border-radius 0.2s ease;
+        }
+
+        /* =========================================================
+           CINEMATIC SPLASH SCREEN & LOGO ANIMATIONS
+           ========================================================= */
+        #splash-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 100;
+            background-color: #050507;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: all;
+        }
+
+        /* Step 1: Smooth fade-in from darkness */
+        @keyframes logoFadeIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.92);
+                filter: brightness(0.6);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                filter: brightness(1);
+            }
+        }
+
+        /* Step 2: Subtle, weighty breathing pulse while loading */
+        @keyframes logoPulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.96;
+                filter: drop-shadow(0 0 18px var(--accent-glow));
+            }
+            50% {
+                transform: scale(1.045);
+                opacity: 0.72;
+                filter: drop-shadow(0 0 32px var(--accent-glow));
+            }
+        }
+
+        .splash-logo-animate {
+            animation:
+                logoFadeIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+                logoPulse 1.6s ease-in-out 0.55s infinite;
+        }
+
+        /* Step 3: Fast, smooth fade-out of logo, then sharp reveal of UI */
+        .splash-logo-exit {
+            animation: none !important;
+            opacity: 0 !important;
+            transform: scale(0.98) !important;
+            transition: opacity 0.26s ease-out, transform 0.26s ease-out !important;
+        }
+
+        /* Equalizer Bars */
+        @keyframes eqWave {
+            0%, 100% { transform: scaleY(0.25); }
+            50% { transform: scaleY(1); }
+        }
+        .eq-bar {
+            transform-origin: bottom;
+            animation: eqWave 0.75s ease-in-out infinite;
+        }
+        .eq-bar:nth-child(2) { animation-delay: 0.16s; animation-duration: 0.58s; }
+        .eq-bar:nth-child(3) { animation-delay: 0.32s; animation-duration: 0.84s; }
+
+        /* Clean Scrubber Input */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            border-radius: 99px;
+            background: rgba(255, 255, 255, 0.12);
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin-top: -4px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+            transition: transform 0.12s ease;
+        }
+        input[type="range"]:active::-webkit-slider-thumb {
+            transform: scale(1.25);
+        }
+
+        /* Fullscreen Player Drawer */
+        #now-playing-modal {
+            transform: translateY(100%);
+            transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+            background-color: var(--bg-main);
+        }
+        #now-playing-modal.open {
+            transform: translateY(0%);
+        }
+    </style>
+</head>
+<body class="bg-obsidian flex justify-center">
+
+    <!-- Mobile-First App Shell -->
+    <div id="app-shell" class="relative w-full max-w-[460px] h-full flex flex-col justify-between overflow-hidden">
+
+        <!-- ==================== CINEMATIC SPLASH SCREEN ==================== -->
+        <div id="splash-screen">
+            <div class="flex flex-col items-center justify-center px-8">
+                <!-- Logo Container (Supports PNG, JPEG, SVG with transparent or dark background) -->
+                <div id="splash-logo-wrapper" class="splash-logo-animate flex items-center justify-center">
+                    <img
+                        id="splash-logo-img"
+                        src=""
+                        alt="App Logo"
+                        class="max-w-[168px] max-h-[168px] w-auto h-auto object-contain select-none"
+                    >
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== MINIMAL HEADER ==================== -->
+        <header class="px-4 pt-4 pb-3 flex items-center justify-between shrink-0 border-b border-white/[0.07]">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-[9px] bg-white/[0.04] border border-white/[0.1] flex items-center justify-center overflow-hidden p-1.5">
+                    <img id="header-mini-logo" src="" alt="Logo" class="w-full h-full object-contain">
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-sm font-semibold tracking-tight text-zinc-100">
+                            Sound Vault
+                        </h1>
+                        <span class="text-[10px] font-mono-code px-1.5 py-0.5 rounded bg-white/[0.05] text-zinc-400 border border-white/[0.06]">
+                            TMA
+                        </span>
+                    </div>
+                    <p id="tg-user-greeting" class="text-[11px] text-zinc-500">
+                        Личная фонотека
+                    </p>
+                </div>
+            </div>
+
+            <button onclick="openBotGuideModal()" class="surface-card px-3 py-1.5 rounded-[8px] text-xs font-medium text-zinc-300 hover:text-white flex items-center gap-1.5 active:scale-95 transition">
+                <i data-lucide="bot" class="w-3.5 h-3.5 accent-text"></i>
+                <span>Бот TG</span>
+            </button>
+        </header>
+
+        <!-- ==================== MAIN CONTENT AREA ==================== -->
+        <main id="main-scroll" class="flex-1 overflow-y-auto px-4 pb-36 pt-3.5">
+
+            <!-- ==================== TAB 1: МЕДИАТЕКА ==================== -->
+            <section id="tab-home" class="space-y-3.5">
+                <!-- Search Input -->
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                    <input
+                        id="search-input"
+                        type="text"
+                        placeholder="Поиск треков, исполнителей, альбомов..."
+                        oninput="handleSearch(this.value)"
+                        class="w-full surface-card rounded-[10px] pl-10 pr-9 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-white/25"
+                    >
+                    <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Filter Pills -->
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                    <button onclick="setHomeFilter('all')" data-filter="all" class="filter-pill px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition shrink-0 accent-bg">
+                        Все
+                    </button>
+                    <button onclick="setHomeFilter('tracks')" data-filter="tracks" class="filter-pill px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition shrink-0 surface-card text-zinc-400">
+                        Треки
+                    </button>
+                    <button onclick="setHomeFilter('artists')" data-filter="artists" class="filter-pill px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition shrink-0 surface-card text-zinc-400">
+                        Исполнители
+                    </button>
+                    <button onclick="setHomeFilter('favorites')" data-filter="favorites" class="filter-pill px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition shrink-0 surface-card text-zinc-400 flex items-center gap-1.5">
+                        <i data-lucide="heart" class="w-3 h-3"></i> Избранное
+                    </button>
+                </div>
+
+                <!-- Active Artist Subfilter Banner -->
+                <div id="active-subfilter-banner" class="hidden surface-card rounded-[10px] px-3.5 py-2 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] text-zinc-500">Исполнитель:</span>
+                        <span id="active-subfilter-label" class="text-xs font-semibold text-zinc-100"></span>
+                    </div>
+                    <button onclick="resetSubfilter()" class="text-xs text-zinc-400 hover:text-white flex items-center gap-1">
+                        <span>Сбросить</span>
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Artists Grid (Shown on 'artists' filter) -->
+                <div id="artists-container" class="hidden grid grid-cols-2 gap-2.5"></div>
+
+                <!-- Tracklist Header -->
+                <div class="flex items-center justify-between pt-0.5">
+                    <h2 class="text-xs font-medium text-zinc-400">
+                        Композиции <span id="tracks-count-badge" class="font-mono-code text-zinc-500 ml-1"></span>
+                    </h2>
+                    <button onclick="playRandomTrack()" class="text-xs font-medium text-zinc-300 hover:text-white flex items-center gap-1.5 active:scale-95 transition">
+                        <i data-lucide="shuffle" class="w-3.5 h-3.5 accent-text"></i>
+                        <span>Перемешать</span>
+                    </button>
+                </div>
+
+                <!-- Tracks List -->
+                <div id="track-list" class="space-y-2"></div>
+            </section>
+
+            <!-- ==================== TAB 2: АЛЬБОМЫ ==================== -->
+            <section id="tab-albums" class="hidden space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-semibold text-zinc-100">Альбомы и релизы</h2>
+                        <p class="text-xs text-zinc-500">Группировка по метаданным</p>
+                    </div>
+                    <span id="albums-count" class="text-[11px] font-mono-code px-2.5 py-1 rounded-[8px] surface-card text-zinc-400"></span>
+                </div>
+
+                <!-- Albums Grid -->
+                <div id="albums-grid" class="grid grid-cols-2 gap-3"></div>
+
+                <!-- Selected Album Detail Drawer -->
+                <div id="album-detail-view" class="hidden surface-card rounded-[12px] p-3.5 space-y-3">
+                    <div class="flex items-center gap-3.5">
+                        <img id="album-detail-cover" src="" alt="Album Cover" class="w-20 h-20 object-cover cover-img border border-white/10 shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <span class="text-[10px] font-mono-code uppercase tracking-wider text-zinc-500">Релиз</span>
+                            <h3 id="album-detail-title" class="text-sm font-semibold text-zinc-100 truncate mt-0.5"></h3>
+                            <p id="album-detail-artist" class="text-xs text-zinc-400 truncate"></p>
+                            <div class="flex items-center gap-2 mt-2.5">
+                                <button onclick="playSelectedAlbum()" class="px-3.5 py-1.5 rounded-[8px] accent-bg font-medium text-xs flex items-center gap-1.5 active:scale-95 transition">
+                                    <i data-lucide="play" class="w-3 h-3 fill-current"></i>
+                                    <span>Слушать</span>
+                                </button>
+                                <button onclick="closeAlbumDetail()" class="px-3 py-1.5 rounded-[8px] bg-white/[0.05] text-zinc-300 text-xs font-medium hover:bg-white/[0.1] transition">
+                                    Закрыть
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="album-detail-tracks" class="space-y-1 pt-2.5 border-t border-white/[0.07]"></div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 3: ЗАГРУЗИТЬ ==================== -->
+            <section id="tab-upload" class="hidden space-y-4">
+                <div>
+                    <h2 class="text-sm font-semibold text-zinc-100">Добавить трек</h2>
+                    <p class="text-xs text-zinc-500">Загрузи аудиофайл (MP3, WAV, OGG) и обложку (PNG/JPEG)</p>
+                </div>
+
+                <form id="upload-form" onsubmit="handleTrackUpload(event)" class="surface-card rounded-[12px] p-4 space-y-4">
+                    <!-- Cover Upload & Minimal Presets -->
+                    <div class="space-y-2.5">
+                        <div class="flex items-center gap-3.5">
+                            <img id="upload-cover-preview" src="" alt="Cover Preview" class="w-20 h-20 object-cover cover-img border border-white/10 shrink-0">
+                            <div class="flex-1 space-y-2">
+                                <label class="block text-xs font-medium text-zinc-300">Обложка трека</label>
+                                <label class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-[8px] bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] text-xs font-medium text-zinc-200 cursor-pointer transition">
+                                    <i data-lucide="image" class="w-4 h-4 text-zinc-400"></i>
+                                    <span>Выбрать PNG / JPEG</span>
+                                    <input type="file" id="upload-cover-input" accept="image/png, image/jpeg, image/webp" class="hidden" onchange="handleCoverFileSelect(event)">
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Minimal Cover Art Generators -->
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <button type="button" onclick="applyCoverPreset('monolith')" class="py-1.5 px-2 rounded-[7px] bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.07] text-[11px] text-zinc-400 hover:text-zinc-200 transition">
+                                Графит
+                            </button>
+                            <button type="button" onclick="applyCoverPreset('eclipse')" class="py-1.5 px-2 rounded-[7px] bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.07] text-[11px] text-zinc-400 hover:text-zinc-200 transition">
+                                Затмение
+                            </button>
+                            <button type="button" onclick="applyCoverPreset('grid')" class="py-1.5 px-2 rounded-[7px] bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.07] text-[11px] text-zinc-400 hover:text-zinc-200 transition">
+                                Геометрия
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Audio File Input -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-medium text-zinc-300">Аудиофайл</label>
+                        <label class="flex items-center justify-between w-full p-3 rounded-[9px] bg-white/[0.02] border border-dashed border-white/[0.14] hover:border-white/30 cursor-pointer transition">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-9 h-9 rounded-[8px] bg-white/[0.05] flex items-center justify-center shrink-0">
+                                    <i data-lucide="music" class="w-4 h-4 text-zinc-300"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p id="audio-file-label" class="text-xs font-medium text-zinc-200 truncate">Выбрать аудио с устройства</p>
+                                    <p id="audio-file-sub" class="text-[11px] text-zinc-500">MP3, WAV, OGG, FLAC</p>
+                                </div>
+                            </div>
+                            <span class="text-xs font-medium text-zinc-300 shrink-0 ml-2">Обзор</span>
+                            <input type="file" id="upload-audio-input" accept="audio/*" class="hidden" onchange="handleAudioFileSelect(event)">
+                        </label>
+
+                        <input
+                            type="url"
+                            id="upload-audio-url"
+                            placeholder="Или прямая ссылка на аудио https://..."
+                            class="w-full rounded-[8px] bg-white/[0.03] border border-white/[0.08] px-3 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/25"
+                        >
+                    </div>
+
+                    <!-- Metadata Fields -->
+                    <div class="space-y-2.5">
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-300 mb-1">Название трека *</label>
+                            <input
+                                type="text"
+                                id="upload-title"
+                                required
+                                placeholder="Введите название"
+                                class="w-full rounded-[8px] bg-white/[0.03] border border-white/[0.08] px-3 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/25"
+                            >
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block text-xs font-medium text-zinc-300 mb-1">Исполнитель *</label>
+                                <input
+                                    type="text"
+                                    id="upload-artist"
+                                    required
+                                    placeholder="Имя артиста"
+                                    class="w-full rounded-[8px] bg-white/[0.03] border border-white/[0.08] px-3 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/25"
+                                >
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-zinc-300 mb-1">Альбом</label>
+                                <input
+                                    type="text"
+                                    id="upload-album"
+                                    placeholder="Синглы"
+                                    class="w-full rounded-[8px] bg-white/[0.03] border border-white/[0.08] px-3 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/25"
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-2.5 rounded-[9px] accent-bg font-semibold text-xs flex items-center justify-center gap-2 active:scale-[0.99] transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Добавить в медиатеку</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- ==================== TAB 4: КАСТОМИЗАЦИЯ ==================== -->
+            <section id="tab-custom" class="hidden space-y-3.5">
+                <div>
+                    <h2 class="text-sm font-semibold text-zinc-100">Внешний вид и запуск</h2>
+                    <p class="text-xs text-zinc-500">Настройка стартового логотипа и тёмной палитры</p>
+                </div>
+
+                <!-- SPLASH LOGO UPLOAD & PREVIEW CARD -->
+                <div class="surface-card rounded-[12px] p-4 space-y-3.5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold text-zinc-100">Стартовый логотип (Splash Screen)</h3>
+                            <p class="text-[11px] text-zinc-500">Появляется с плавной пульсацией при запуске</p>
+                        </div>
+                        <button onclick="replaySplashScreen()" class="px-2.5 py-1.5 rounded-[7px] bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] text-[11px] font-medium text-zinc-200 flex items-center gap-1.5 active:scale-95 transition">
+                            <i data-lucide="play" class="w-3 h-3"></i>
+                            <span>Тест заставки</span>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-3.5 p-3 rounded-[9px] bg-[#050507] border border-white/[0.07]">
+                        <div class="w-16 h-16 rounded-[8px] bg-black/60 border border-white/[0.06] flex items-center justify-center p-2 shrink-0">
+                            <img id="custom-logo-preview" src="" alt="Custom Splash Logo" class="max-w-full max-h-full object-contain">
+                        </div>
+                        <div class="flex-1 space-y-2">
+                            <label class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-[8px] accent-bg text-xs font-semibold cursor-pointer active:scale-[0.98] transition">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                <span>Загрузить лого (PNG / JPEG)</span>
+                                <input type="file" id="splash-logo-input" accept="image/png, image/jpeg, image/webp, image/svg+xml" class="hidden" onchange="handleSplashLogoUpload(event)">
+                            </label>
+                            <button type="button" onclick="resetSplashLogo()" class="w-full py-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition">
+                                Сбросить на стандартный логотип
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dark Background Shade -->
+                <div class="surface-card rounded-[12px] p-3.5 space-y-2.5">
+                    <span class="text-xs font-medium text-zinc-200 block">Оттенок тёмного фона</span>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setBgTone('obsidian')" data-bg="obsidian" class="bg-tone-btn py-2 px-2 rounded-[8px] text-xs font-medium accent-bg transition">
+                            Obsidian
+                        </button>
+                        <button onclick="setBgTone('carbon')" data-bg="carbon" class="bg-tone-btn py-2 px-2 rounded-[8px] text-xs font-medium bg-white/[0.04] text-zinc-400 border border-white/[0.07] transition">
+                            Carbon
+                        </button>
+                        <button onclick="setBgTone('oled')" data-bg="oled" class="bg-tone-btn py-2 px-2 rounded-[8px] text-xs font-medium bg-white/[0.04] text-zinc-400 border border-white/[0.07] transition">
+                            Pure OLED
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Accent Color -->
+                <div class="surface-card rounded-[12px] p-3.5 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium text-zinc-200">Акцентный цвет</span>
+                        <span id="current-theme-name" class="text-[11px] font-mono-code text-zinc-400">Monochrome</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="setAccentTheme('mono')" data-theme="mono" class="theme-btn p-2.5 rounded-[8px] bg-white/[0.04] border border-white/30 flex items-center gap-2.5 text-left transition">
+                            <span class="w-3.5 h-3.5 rounded-full bg-zinc-200 shrink-0"></span>
+                            <span class="text-xs font-medium text-zinc-200">Monochrome</span>
+                        </button>
+                        <button onclick="setAccentTheme('crimson')" data-theme="crimson" class="theme-btn p-2.5 rounded-[8px] bg-white/[0.04] border border-white/[0.07] flex items-center gap-2.5 text-left transition">
+                            <span class="w-3.5 h-3.5 rounded-full bg-[#dc2626] shrink-0"></span>
+                            <span class="text-xs font-medium text-zinc-200">Deep Crimson</span>
+                        </button>
+                        <button onclick="setAccentTheme('steel')" data-theme="steel" class="theme-btn p-2.5 rounded-[8px] bg-white/[0.04] border border-white/[0.07] flex items-center gap-2.5 text-left transition">
+                            <span class="w-3.5 h-3.5 rounded-full bg-[#60a5fa] shrink-0"></span>
+                            <span class="text-xs font-medium text-zinc-200">Cold Steel</span>
+                        </button>
+                        <button onclick="setAccentTheme('amber')" data-theme="amber" class="theme-btn p-2.5 rounded-[8px] bg-white/[0.04] border border-white/[0.07] flex items-center gap-2.5 text-left transition">
+                            <span class="w-3.5 h-3.5 rounded-full bg-[#d97706] shrink-0"></span>
+                            <span class="text-xs font-medium text-zinc-200">Warm Amber</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Cover Radius -->
+                <div class="surface-card rounded-[12px] p-3.5 space-y-2.5">
+                    <span class="text-xs font-medium text-zinc-200 block">Геометрия обложек</span>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setCoverShape('4px', 'sharp')" data-shape="sharp" class="shape-btn py-2 px-2 rounded-[8px] text-xs font-medium bg-white/[0.04] text-zinc-400 border border-white/[0.07] transition">
+                            Строгие
+                        </button>
+                        <button onclick="setCoverShape('10px', 'rounded')" data-shape="rounded" class="shape-btn py-2 px-2 rounded-[8px] text-xs font-medium accent-bg transition">
+                            Мягкие
+                        </button>
+                        <button onclick="setCoverShape('50%', 'circle')" data-shape="circle" class="shape-btn py-2 px-2 rounded-[8px] text-xs font-medium bg-white/[0.04] text-zinc-400 border border-white/[0.07] transition">
+                            Диск
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ==================== STICKY MINI-PLAYER BAR ==================== -->
+        <div id="mini-player" onclick="openNowPlayingModal()" class="mx-3 mb-2 surface-card rounded-[12px] p-2.5 shadow-2xl cursor-pointer active:scale-[0.99] transition">
+            <!-- Thin Progress Bar -->
+            <div class="w-full h-[2px] bg-white/[0.08] rounded-full overflow-hidden mb-2">
+                <div id="mini-progress-bar" class="h-full accent-bg w-0 transition-all duration-150"></div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2.5">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                    <img id="mini-cover" src="" alt="Cover" class="w-10 h-10 object-cover cover-img border border-white/10 shrink-0">
+                    <div class="min-w-0 flex-1">
+                        <h4 id="mini-title" class="text-xs font-semibold text-zinc-100 truncate">Выбери трек</h4>
+                        <p id="mini-artist" class="text-[11px] text-zinc-500 truncate">Sound Vault</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                    <button onclick="toggleFavoriteCurrent()" id="mini-fav-btn" class="w-8 h-8 rounded-[8px] flex items-center justify-center text-zinc-500 hover:text-zinc-200 transition">
+                        <i data-lucide="heart" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="togglePlayPause()" id="mini-play-btn" class="w-9 h-9 rounded-[9px] accent-bg flex items-center justify-center active:scale-90 transition">
+                        <i data-lucide="play" class="w-4 h-4 fill-current ml-0.5"></i>
+                    </button>
+                    <button onclick="playNextTrack()" class="w-8 h-8 rounded-[8px] flex items-center justify-center text-zinc-400 hover:text-white transition">
+                        <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== BOTTOM NAVIGATION ==================== -->
+        <nav class="h-[60px] border-t border-white/[0.07] px-2 flex items-center justify-around shrink-0" style="background-color: var(--bg-main);">
+            <button onclick="switchTab('home')" data-tab="home" class="nav-btn flex flex-col items-center justify-center gap-1 py-1 px-3 accent-text transition">
+                <i data-lucide="disc-3" class="w-4 h-4"></i>
+                <span class="text-[10px] font-medium">Медиатека</span>
+            </button>
+            <button onclick="switchTab('albums')" data-tab="albums" class="nav-btn flex flex-col items-center justify-center gap-1 py-1 px-3 text-zinc-500 transition">
+                <i data-lucide="library" class="w-4 h-4"></i>
+                <span class="text-[10px] font-medium">Альбомы</span>
+            </button>
+            <button onclick="switchTab('upload')" data-tab="upload" class="nav-btn flex flex-col items-center justify-center gap-1 py-1 px-3 text-zinc-500 transition">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span class="text-[10px] font-medium">Загрузить</span>
+            </button>
+            <button onclick="switchTab('custom')" data-tab="custom" class="nav-btn flex flex-col items-center justify-center gap-1 py-1 px-3 text-zinc-500 transition">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                <span class="text-[10px] font-medium">Стиль</span>
+            </button>
+        </nav>
+
+        <!-- ==================== FULLSCREEN NOW PLAYING MODAL ==================== -->
+        <div id="now-playing-modal" class="absolute inset-0 z-50 flex flex-col justify-between p-5 overflow-y-auto">
+            <!-- Header -->
+            <div class="flex items-center justify-between pt-1">
+                <button onclick="closeNowPlayingModal()" class="w-9 h-9 rounded-[9px] surface-card flex items-center justify-center text-zinc-300 active:scale-90 transition">
+                    <i data-lucide="chevron-down" class="w-5 h-5"></i>
+                </button>
+                <div class="text-center">
+                    <p class="text-[10px] font-mono-code uppercase tracking-widest text-zinc-500">Сейчас играет</p>
+                    <p id="full-album-name" class="text-xs font-medium text-zinc-300 truncate max-w-[190px]">Альбом</p>
+                </div>
+                <button onclick="toggleFavoriteCurrent()" id="full-fav-btn" class="w-9 h-9 rounded-[9px] surface-card flex items-center justify-center text-zinc-300 active:scale-90 transition">
+                    <i data-lucide="heart" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Artwork & Minimal Spectrum -->
+            <div class="my-auto py-4 flex flex-col items-center">
+                <div class="relative w-64 h-64 mb-5">
+                    <img id="full-cover" src="" alt="Full Cover" class="w-full h-full object-cover cover-img border border-white/10 shadow-2xl">
+                </div>
+                <canvas id="audio-visualizer-canvas" width="260" height="32" class="w-60 h-8 opacity-80"></canvas>
+            </div>
+
+            <!-- Track Info & Controls -->
+            <div class="space-y-4 pb-2">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <h2 id="full-title" class="text-lg font-semibold text-zinc-100 truncate">Название трека</h2>
+                        <p id="full-artist" class="text-xs text-zinc-400 truncate mt-0.5">Исполнитель</p>
+                    </div>
+                    <span id="audio-source-badge" class="text-[10px] font-mono-code px-2 py-1 rounded bg-white/[0.05] border border-white/[0.08] text-zinc-400 shrink-0">
+                        SYNTH
+                    </span>
+                </div>
+
+                <!-- Scrubber -->
+                <div class="space-y-1.5">
+                    <input
+                        id="full-scrubber"
+                        type="range"
+                        min="0"
+                        max="100"
+                        value="0"
+                        oninput="seekTrack(this.value)"
+                        class="w-full"
+                    >
+                    <div class="flex justify-between text-[11px] font-mono-code text-zinc-500">
+                        <span id="current-time-label">0:00</span>
+                        <span id="total-time-label">0:00</span>
+                    </div>
+                </div>
+
+                <!-- Transport -->
+                <div class="flex items-center justify-between px-2">
+                    <button id="shuffle-btn" onclick="toggleShuffle()" class="w-10 h-10 rounded-[9px] flex items-center justify-center text-zinc-500 hover:text-zinc-200 transition">
+                        <i data-lucide="shuffle" class="w-4 h-4"></i>
+                    </button>
+
+                    <button onclick="playPrevTrack()" class="w-12 h-12 rounded-[11px] surface-card flex items-center justify-center text-zinc-200 active:scale-90 transition">
+                        <i data-lucide="skip-back" class="w-5 h-5 fill-current"></i>
+                    </button>
+
+                    <button id="full-play-btn" onclick="togglePlayPause()" class="w-15 h-15 w-[60px] h-[60px] rounded-full accent-bg flex items-center justify-center shadow-lg active:scale-95 transition">
+                        <i data-lucide="play" class="w-6 h-6 fill-current ml-0.5"></i>
+                    </button>
+
+                    <button onclick="playNextTrack()" class="w-12 h-12 rounded-[11px] surface-card flex items-center justify-center text-zinc-200 active:scale-90 transition">
+                        <i data-lucide="skip-forward" class="w-5 h-5 fill-current"></i>
+                    </button>
+
+                    <button id="repeat-btn" onclick="toggleRepeat()" class="w-10 h-10 rounded-[9px] flex items-center justify-center text-zinc-500 hover:text-zinc-200 transition">
+                        <i data-lucide="repeat" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Volume -->
+                <div class="flex items-center gap-3 px-2 pt-1">
+                    <i data-lucide="volume-1" class="w-4 h-4 text-zinc-500"></i>
+                    <input type="range" min="0" max="100" value="80" oninput="setVolume(this.value)" class="w-full">
+                    <i data-lucide="volume-2" class="w-4 h-4 text-zinc-500"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== BOT INTEGRATION MODAL ==================== -->
+        <div id="bot-guide-modal" class="hidden absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="surface-card rounded-[12px] p-5 w-full space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="bot" class="w-4 h-4 accent-text"></i>
+                        <h3 class="text-sm font-semibold text-zinc-100">Подключение к Telegram боту</h3>
+                    </div>
+                    <button onclick="closeBotGuideModal()" class="text-zinc-400 hover:text-white">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="space-y-2 text-xs text-zinc-400 leading-relaxed">
+                    <p>1. Размести этот <span class="text-zinc-200 font-mono-code bg-white/[0.06] px-1.5 py-0.5 rounded">index.html</span> на хостинге с HTTPS (Vercel, GitHub Pages, Cloudflare Pages).</p>
+                    <p>2. Открой <span class="text-zinc-200 font-medium">@BotFather</span> и создай бота командой <span class="text-zinc-200 font-mono-code">/newbot</span>.</p>
+                    <p>3. Отправь <span class="text-zinc-200 font-mono-code">/setmenubutton</span>, выбери своего бота и укажи ссылку на приложение.</p>
+                    <p class="text-[11px] text-zinc-500 pt-1">Telegram WebApp SDK: <span id="sdk-status-text" class="text-zinc-300 font-medium">Готов</span></p>
+                </div>
+                <button onclick="closeBotGuideModal()" class="w-full py-2.5 rounded-[9px] accent-bg font-semibold text-xs">
+                    Понятно
+                </button>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="absolute top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-200">
+            <div class="surface-card px-3.5 py-1.5 rounded-[8px] text-xs font-medium text-zinc-100 shadow-2xl flex items-center gap-2 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full accent-bg"></span>
+                <span id="toast-text">Уведомление</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. TELEGRAM WEBAPP SDK INITIALIZATION
+        // ==========================================
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+            try {
+                tg.setHeaderColor('#09090b');
+                tg.setBackgroundColor('#09090b');
+            } catch (e) {}
+
+            const user = tg.initDataUnsafe?.user;
+            if (user) {
+                const label = user.username ? `@${user.username}` : user.first_name;
+                document.getElementById('tg-user-greeting').textContent = label;
+            }
+        }
+
+        function triggerHaptic(type = 'light') {
+            try {
+                if (tg?.HapticFeedback) {
+                    if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+                    else tg.HapticFeedback.impactOccurred(type);
+                }
+            } catch (e) {}
+        }
+
+        // ==========================================
+        // 2. DEFAULT MINIMAL LOGO & SPLASH ANIMATION
+        // ==========================================
+        function getDefaultMinimalLogo() {
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240" fill="none">
+                    <rect x="28" y="28" width="184" height="184" rx="42" stroke="#F4F4F5" stroke-width="4" stroke-opacity="0.9"/>
+                    <path d="M84 156V84L156 156V84" stroke="#F4F4F5" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="156" cy="84" r="6" fill="#F4F4F5"/>
+                </svg>
+            `;
+            return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.trim());
+        }
+
+        const STORAGE_LOGO_KEY = 'noir_tma_splash_logo_v1';
+
+        function getActiveSplashLogo() {
+            try {
+                return localStorage.getItem(STORAGE_LOGO_KEY) || getDefaultMinimalLogo();
+            } catch (e) {
+                return getDefaultMinimalLogo();
+            }
+        }
+
+        function applyLogoEverywhere(src) {
+            document.getElementById('splash-logo-img').src = src;
+            document.getElementById('header-mini-logo').src = src;
+            document.getElementById('custom-logo-preview').src = src;
+        }
+
+        let splashTimers = [];
+
+        function playSplashSequence() {
+            splashTimers.forEach(t => clearTimeout(t));
+            splashTimers = [];
+
+            const splash = document.getElementById('splash-screen');
+            const wrapper = document.getElementById('splash-logo-wrapper');
+
+            // Reset splash visibility and restart fade-in + breathing pulse
+            splash.style.display = 'flex';
+            splash.style.opacity = '1';
+            wrapper.classList.remove('splash-logo-exit');
+            wrapper.classList.remove('splash-logo-animate');
+            void wrapper.offsetWidth; // Force reflow
+            wrapper.classList.add('splash-logo-animate');
+
+            // After 1.85s of smooth pulsing: fade logo out quickly & smoothly, then snap open UI
+            const fadeOutTimer = setTimeout(() => {
+                wrapper.classList.add('splash-logo-exit');
+
+                const revealTimer = setTimeout(() => {
+                    splash.style.display = 'none';
+                    triggerHaptic('light');
+                }, 270);
+                splashTimers.push(revealTimer);
+            }, 1850);
+
+            splashTimers.push(fadeOutTimer);
+        }
+
+        function replaySplashScreen() {
+            triggerHaptic('medium');
+            playSplashSequence();
+        }
+
+        function handleSplashLogoUpload(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const dataUrl = ev.target.result;
+                try {
+                    localStorage.setItem(STORAGE_LOGO_KEY, dataUrl);
+                } catch (err) {}
+                applyLogoEverywhere(dataUrl);
+                triggerHaptic('success');
+                showToast('Логотип сохранён');
+                playSplashSequence();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function resetSplashLogo() {
+            try {
+                localStorage.removeItem(STORAGE_LOGO_KEY);
+            } catch (e) {}
+            const def = getDefaultMinimalLogo();
+            applyLogoEverywhere(def);
+            triggerHaptic('light');
+            showToast('Установлен стандартный логотип');
+        }
+
+        // ==========================================
+        // 3. MINIMAL COVER ART GENERATOR
+        // ==========================================
+        function generateMinimalCover(titleText = 'SV', style = 'monolith') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 320;
+            canvas.height = 320;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#0d0d10';
+            ctx.fillRect(0, 0, 320, 320);
+
+            if (style === 'monolith') {
+                const grad = ctx.createLinearGradient(0, 0, 320, 320);
+                grad.addColorStop(0, '#18181b');
+                grad.addColorStop(1, '#09090b');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 320, 320);
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(44, 44, 232, 232);
+            } else if (style === 'eclipse') {
+                const grad = ctx.createRadialGradient(160, 160, 18, 160, 160, 150);
+                grad.addColorStop(0, '#27272a');
+                grad.addColorStop(0.65, '#121215');
+                grad.addColorStop(1, '#09090b');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 320, 320);
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(160, 160, 74, 0, Math.PI * 2);
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = '#101014';
+                ctx.fillRect(0, 0, 320, 320);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+                ctx.lineWidth = 1;
+                for (let i = 40; i < 320; i += 40) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i, 320);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, i);
+                    ctx.lineTo(320, i);
+                    ctx.stroke();
+                }
+            }
+
+            const initials = (titleText || 'SV').replace(/[^a-zA-Zа-яА-Я0-9]/g, '').slice(0, 2).toUpperCase() || 'SV';
+            ctx.fillStyle = 'rgba(244, 244, 245, 0.85)';
+            ctx.font = '600 44px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(initials, 160, 162);
+
+            return canvas.toDataURL('image/png');
+        }
+
+        // ==========================================
+        // 4. PRELOADED DEMO TRACKS & APP STATE
+        // ==========================================
+        let tracks = [
+            {
+                id: 't1',
+                title: 'Nocturne I',
+                artist: 'Klangwerk',
+                album: 'Monolith EP',
+                year: '2026',
+                duration: 186,
+                favorite: true,
+                cover: generateMinimalCover('N1', 'eclipse'),
+                audioUrl: null,
+                synthPreset: { bpm: 118, rootFreq: 65.41, scale: [1, 1.189, 1.334, 1.498, 1.781] }
+            },
+            {
+                id: 't2',
+                title: 'Concrete Horizon',
+                artist: 'Klangwerk',
+                album: 'Monolith EP',
+                year: '2026',
+                duration: 214,
+                favorite: false,
+                cover: generateMinimalCover('CH', 'monolith'),
+                audioUrl: null,
+                synthPreset: { bpm: 124, rootFreq: 73.42, scale: [1, 1.122, 1.334, 1.498, 1.681] }
+            },
+            {
+                id: 't3',
+                title: 'Subzero Drift',
+                artist: 'Nordic State',
+                album: 'Greyscale',
+                year: '2025',
+                duration: 172,
+                favorite: true,
+                cover: generateMinimalCover('SD', 'grid'),
+                audioUrl: null,
+                synthPreset: { bpm: 102, rootFreq: 55.0, scale: [1, 1.189, 1.498, 1.781, 2.0] }
+            },
+            {
+                id: 't4',
+                title: 'Iron Pulse',
+                artist: 'Vektor',
+                album: 'Raw Signal',
+                year: '2026',
+                duration: 198,
+                favorite: false,
+                cover: generateMinimalCover('IP', 'monolith'),
+                audioUrl: null,
+                synthPreset: { bpm: 130, rootFreq: 61.74, scale: [1, 1.059, 1.334, 1.498, 1.587] }
+            }
+        ];
+
+        let state = {
+            currentTrackIndex: 0,
+            isPlaying: false,
+            currentTime: 0,
+            volume: 0.8,
+            isShuffle: false,
+            isRepeat: false,
+            homeFilter: 'all',
+            searchQuery: '',
+            subfilter: null,
+            selectedAlbum: null,
+            uploadCoverDataUrl: generateMinimalCover('SV', 'monolith'),
+            uploadAudioObjectUrl: null
+        };
+
+        // ==========================================
+        // 5. WEB AUDIO SYNTH + HTML5 AUDIO ENGINE
+        // ==========================================
+        let audioCtx = null;
+        let masterGain = null;
+        let synthInterval = null;
+        let synthStep = 0;
+        let htmlAudio = new Audio();
+        let progressTimer = null;
+
+        htmlAudio.addEventListener('ended', () => {
+            if (state.isRepeat) {
+                htmlAudio.currentTime = 0;
+                htmlAudio.play();
+            } else {
+                playNextTrack();
+            }
+        });
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContextClass();
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = state.volume * 0.28;
+                masterGain.connect(audioCtx.destination);
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function stopSynthEngine() {
+            if (synthInterval) {
+                clearInterval(synthInterval);
+                synthInterval = null;
+            }
+        }
+
+        function startSynthEngine(preset) {
+            stopSynthEngine();
+            initAudioContext();
+            synthStep = 0;
+            const stepMs = (60 / preset.bpm / 2) * 1000;
+
+            const playStep = () => {
+                if (!state.isPlaying || !audioCtx) return;
+                const now = audioCtx.currentTime;
+
+                // Deep minimal kick
+                if (synthStep % 2 === 0) {
+                    const kickOsc = audioCtx.createOscillator();
+                    const kickGain = audioCtx.createGain();
+                    kickOsc.type = 'sine';
+                    kickOsc.frequency.setValueAtTime(110, now);
+                    kickOsc.frequency.exponentialRampToValueAtTime(38, now + 0.14);
+
+                    kickGain.gain.setValueAtTime(0.55, now);
+                    kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+                    kickOsc.connect(kickGain);
+                    kickGain.connect(masterGain);
+                    kickOsc.start(now);
+                    kickOsc.stop(now + 0.21);
+                }
+
+                // Atmospheric analog bass / pad note
+                const mult = preset.scale[synthStep % preset.scale.length];
+                const osc = audioCtx.createOscillator();
+                const filter = audioCtx.createBiquadFilter();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(preset.rootFreq * mult, now);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(480, now);
+
+                gain.gain.setValueAtTime(0.14, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(masterGain);
+                osc.start(now);
+                osc.stop(now + 0.25);
+
+                synthStep++;
+            };
+
+            playStep();
+            synthInterval = setInterval(playStep, stepMs);
+        }
+
+        function startPlayback() {
+            const track = tracks[state.currentTrackIndex];
+            if (!track) return;
+
+            state.isPlaying = true;
+            updatePlayerUI();
+
+            if (track.audioUrl) {
+                stopSynthEngine();
+                if (htmlAudio.src !== track.audioUrl) {
+                    htmlAudio.src = track.audioUrl;
+                }
+                htmlAudio.volume = state.volume;
+                htmlAudio.play().catch(() => showToast('Нажми Play для запуска'));
+            } else {
+                htmlAudio.pause();
+                startSynthEngine(track.synthPreset || { bpm: 120, rootFreq: 65.41, scale: [1, 1.189, 1.334, 1.498] });
+            }
+
+            if (!progressTimer) {
+                progressTimer = setInterval(tickPlaybackProgress, 250);
+            }
+        }
+
+        function pausePlayback() {
+            state.isPlaying = false;
+            htmlAudio.pause();
+            stopSynthEngine();
+            updatePlayerUI();
+        }
+
+        function togglePlayPause() {
+            triggerHaptic('medium');
+            if (state.isPlaying) pausePlayback();
+            else startPlayback();
+        }
+
+        function selectAndPlayTrack(trackId) {
+            const idx = tracks.findIndex(t => t.id === trackId);
+            if (idx === -1) return;
+            triggerHaptic('light');
+
+            if (state.currentTrackIndex === idx && state.isPlaying) {
+                pausePlayback();
+                return;
+            }
+
+            state.currentTrackIndex = idx;
+            state.currentTime = 0;
+            if (tracks[idx].audioUrl) {
+                htmlAudio.src = tracks[idx].audioUrl;
+                htmlAudio.currentTime = 0;
+            }
+            startPlayback();
+            renderTrackList();
+        }
+
+        function playNextTrack() {
+            triggerHaptic('light');
+            if (state.isShuffle && tracks.length > 1) {
+                let nextIdx;
+                do {
+                    nextIdx = Math.floor(Math.random() * tracks.length);
+                } while (nextIdx === state.currentTrackIndex);
+                state.currentTrackIndex = nextIdx;
+            } else {
+                state.currentTrackIndex = (state.currentTrackIndex + 1) % tracks.length;
+            }
+            state.currentTime = 0;
+            startPlayback();
+            renderTrackList();
+        }
+
+        function playPrevTrack() {
+            triggerHaptic('light');
+            if (state.currentTime > 4) {
+                state.currentTime = 0;
+                if (tracks[state.currentTrackIndex].audioUrl) htmlAudio.currentTime = 0;
+            } else {
+                state.currentTrackIndex = (state.currentTrackIndex - 1 + tracks.length) % tracks.length;
+                state.currentTime = 0;
+            }
+            startPlayback();
+            renderTrackList();
+        }
+
+        function playRandomTrack() {
+            state.isShuffle = true;
+            updateShuffleRepeatUI();
+            playNextTrack();
+            showToast('Случайный порядок');
+        }
+
+        function tickPlaybackProgress() {
+            if (!state.isPlaying) return;
+            const track = tracks[state.currentTrackIndex];
+            if (!track) return;
+
+            if (track.audioUrl && !isNaN(htmlAudio.duration) && htmlAudio.duration > 0) {
+                track.duration = Math.floor(htmlAudio.duration);
+                state.currentTime = htmlAudio.currentTime;
+            } else {
+                state.currentTime += 0.25;
+                if (state.currentTime >= track.duration) {
+                    if (state.isRepeat) state.currentTime = 0;
+                    else {
+                        playNextTrack();
+                        return;
+                    }
+                }
+            }
+            updateProgressUI();
+        }
+
+        function seekTrack(percent) {
+            const track = tracks[state.currentTrackIndex];
+            if (!track) return;
+            const targetSec = (percent / 100) * track.duration;
+            state.currentTime = targetSec;
+            if (track.audioUrl && !isNaN(htmlAudio.duration)) {
+                htmlAudio.currentTime = targetSec;
+            }
+            updateProgressUI();
+        }
+
+        function setVolume(val) {
+            state.volume = val / 100;
+            htmlAudio.volume = state.volume;
+            if (masterGain && audioCtx) {
+                masterGain.gain.setValueAtTime(state.volume * 0.28, audioCtx.currentTime);
+            }
+        }
+
+        // ==========================================
+        // 6. TABS, SEARCH & LIST RENDERING
+        // ==========================================
+        function formatDuration(sec) {
+            const s = Math.floor(sec || 0);
+            const mins = Math.floor(s / 60);
+            const rem = s % 60;
+            return `${mins}:${rem < 10 ? '0' : ''}${rem}`;
+        }
+
+        function switchTab(tabName) {
+            triggerHaptic('light');
+            ['home', 'albums', 'upload', 'custom'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tabName);
+            });
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const isTarget = btn.dataset.tab === tabName;
+                btn.classList.toggle('accent-text', isTarget);
+                btn.classList.toggle('text-zinc-500', !isTarget);
+            });
+
+            if (tabName === 'albums') renderAlbumsGrid();
+            if (tabName === 'home') renderTrackList();
+        }
+
+        function setHomeFilter(filter) {
+            triggerHaptic('light');
+            state.homeFilter = filter;
+            state.subfilter = null;
+            document.getElementById('active-subfilter-banner').classList.add('hidden');
+
+            document.querySelectorAll('.filter-pill').forEach(pill => {
+                const active = pill.dataset.filter === filter;
+                pill.classList.toggle('accent-bg', active);
+                pill.classList.toggle('surface-card', !active);
+                pill.classList.toggle('text-zinc-400', !active);
+            });
+
+            const artistsBox = document.getElementById('artists-container');
+            if (filter === 'artists') {
+                artistsBox.classList.remove('hidden');
+                renderArtistsGrid();
+            } else {
+                artistsBox.classList.add('hidden');
+            }
+
+            renderTrackList();
+        }
+
+        function handleSearch(val) {
+            state.searchQuery = val.trim().toLowerCase();
+            document.getElementById('clear-search-btn').classList.toggle('hidden', !val);
+            renderTrackList();
+        }
+
+        function clearSearch() {
+            const input = document.getElementById('search-input');
+            input.value = '';
+            handleSearch('');
+        }
+
+        function filterByArtist(artistName) {
+            triggerHaptic('light');
+            state.homeFilter = 'all';
+            state.subfilter = { type: 'artist', value: artistName };
+            document.getElementById('artists-container').classList.add('hidden');
+            document.getElementById('active-subfilter-banner').classList.remove('hidden');
+            document.getElementById('active-subfilter-label').textContent = artistName;
+            renderTrackList();
+        }
+
+        function resetSubfilter() {
+            state.subfilter = null;
+            document.getElementById('active-subfilter-banner').classList.add('hidden');
+            renderTrackList();
+        }
+
+        function renderArtistsGrid() {
+            const container = document.getElementById('artists-container');
+            const artistMap = {};
+            tracks.forEach(t => {
+                if (!artistMap[t.artist]) {
+                    artistMap[t.artist] = { name: t.artist, count: 0, cover: t.cover };
+                }
+                artistMap[t.artist].count++;
+            });
+
+            container.innerHTML = Object.values(artistMap).map(artist => `
+                <div onclick="filterByArtist('${artist.name.replace(/'/g, "\\'")}')" class="surface-card rounded-[10px] p-2.5 flex items-center gap-2.5 cursor-pointer active:scale-95 transition">
+                    <img src="${artist.cover}" alt="${artist.name}" class="w-11 h-11 object-cover cover-img border border-white/10 shrink-0">
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold text-zinc-100 truncate">${artist.name}</p>
+                        <p class="text-[11px] text-zinc-500">${artist.count} трек.</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTrackList() {
+            const listEl = document.getElementById('track-list');
+            const currentTrack = tracks[state.currentTrackIndex];
+
+            let filtered = tracks.filter(t => {
+                if (state.homeFilter === 'favorites' && !t.favorite) return false;
+                if (state.subfilter?.type === 'artist' && t.artist !== state.subfilter.value) return false;
+                if (state.searchQuery) {
+                    const q = state.searchQuery;
+                    return (
+                        t.title.toLowerCase().includes(q) ||
+                        t.artist.toLowerCase().includes(q) ||
+                        t.album.toLowerCase().includes(q)
+                    );
+                }
+                return true;
+            });
+
+            document.getElementById('tracks-count-badge').textContent = `(${filtered.length})`;
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = `
+                    <div class="surface-card rounded-[12px] p-6 text-center space-y-1">
+                        <p class="text-xs font-medium text-zinc-300">Ничего не найдено</p>
+                        <p class="text-[11px] text-zinc-500">Попробуй изменить поисковый запрос</p>
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(track => {
+                const isCurrent = currentTrack && currentTrack.id === track.id;
+                const isPlayingThis = isCurrent && state.isPlaying;
+
+                return `
+                    <div onclick="selectAndPlayTrack('${track.id}')" class="surface-card rounded-[10px] p-2.5 flex items-center justify-between gap-3 cursor-pointer active:scale-[0.99] transition ${isCurrent ? 'border-white/25 bg-white/[0.04]' : ''}">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <div class="relative w-11 h-11 shrink-0">
+                                <img src="${track.cover}" alt="${track.title}" class="w-full h-full object-cover cover-img border border-white/[0.08]">
+                                ${isPlayingThis ? `
+                                    <div class="absolute inset-0 bg-black/60 cover-img flex items-end justify-center gap-1 p-2.5">
+                                        <span class="w-1 h-3.5 rounded-full accent-bg eq-bar"></span>
+                                        <span class="w-1 h-3.5 rounded-full accent-bg eq-bar"></span>
+                                        <span class="w-1 h-3.5 rounded-full accent-bg eq-bar"></span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <h3 class="text-xs font-semibold truncate ${isCurrent ? 'accent-text' : 'text-zinc-100'}">${track.title}</h3>
+                                <div class="flex items-center gap-1.5 text-[11px] text-zinc-500 truncate mt-0.5">
+                                    <span class="truncate">${track.artist}</span>
+                                    <span>•</span>
+                                    <span class="truncate max-w-[110px]">${track.album}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 shrink-0" onclick="event.stopPropagation()">
+                            <span class="text-[11px] font-mono-code text-zinc-500">${formatDuration(track.duration)}</span>
+                            <button onclick="toggleFavoriteById('${track.id}')" class="w-7 h-7 rounded-[7px] flex items-center justify-center transition ${track.favorite ? 'accent-text' : 'text-zinc-600 hover:text-zinc-300'}">
+                                <i data-lucide="heart" class="w-3.5 h-3.5 ${track.favorite ? 'fill-current' : ''}"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function renderAlbumsGrid() {
+            const gridEl = document.getElementById('albums-grid');
+            const albumMap = {};
+
+            tracks.forEach(t => {
+                const key = `${t.album}__${t.artist}`;
+                if (!albumMap[key]) {
+                    albumMap[key] = {
+                        title: t.album || 'Синглы',
+                        artist: t.artist,
+                        year: t.year || '2026',
+                        cover: t.cover,
+                        tracks: []
+                    };
+                }
+                albumMap[key].tracks.push(t);
+            });
+
+            const albums = Object.values(albumMap);
+            document.getElementById('albums-count').textContent = `${albums.length} альб.`;
+
+            gridEl.innerHTML = albums.map((alb, i) => `
+                <div onclick="openAlbumDetail(${i})" class="surface-card rounded-[11px] p-2.5 space-y-2 cursor-pointer active:scale-95 transition">
+                    <div class="relative aspect-square w-full overflow-hidden cover-img border border-white/[0.07]">
+                        <img src="${alb.cover}" alt="${alb.title}" class="w-full h-full object-cover">
+                        <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-sm text-[10px] font-mono-code text-zinc-300">
+                            ${alb.tracks.length} тр.
+                        </span>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-xs font-semibold text-zinc-100 truncate">${alb.title}</h3>
+                        <p class="text-[11px] text-zinc-500 truncate mt-0.5">${alb.artist}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            window._cachedAlbums = albums;
+        }
+
+        function openAlbumDetail(albumIdx) {
+            triggerHaptic('light');
+            const alb = window._cachedAlbums?.[albumIdx];
+            if (!alb) return;
+            state.selectedAlbum = alb;
+
+            const drawer = document.getElementById('album-detail-view');
+            drawer.classList.remove('hidden');
+            document.getElementById('album-detail-cover').src = alb.cover;
+            document.getElementById('album-detail-title').textContent = alb.title;
+            document.getElementById('album-detail-artist').textContent = `${alb.artist} • ${alb.year}`;
+
+            document.getElementById('album-detail-tracks').innerHTML = alb.tracks.map((t, idx) => `
+                <div onclick="selectAndPlayTrack('${t.id}')" class="flex items-center justify-between py-2 px-2 rounded-[8px] hover:bg-white/[0.04] cursor-pointer">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="text-[11px] font-mono-code text-zinc-500 w-4">${idx + 1}</span>
+                        <span class="text-xs text-zinc-200 truncate">${t.title}</span>
+                    </div>
+                    <span class="text-[11px] font-mono-code text-zinc-500">${formatDuration(t.duration)}</span>
+                </div>
+            `).join('');
+
+            drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            lucide.createIcons();
+        }
+
+        function closeAlbumDetail() {
+            document.getElementById('album-detail-view').classList.add('hidden');
+        }
+
+        function playSelectedAlbum() {
+            if (state.selectedAlbum?.tracks?.length) {
+                selectAndPlayTrack(state.selectedAlbum.tracks[0].id);
+            }
+        }
+
+        // ==========================================
+        // 7. FAVORITES & PLAYER UI SYNC
+        // ==========================================
+        function toggleFavoriteById(id) {
+            triggerHaptic('light');
+            const tr = tracks.find(t => t.id === id);
+            if (tr) {
+                tr.favorite = !tr.favorite;
+                renderTrackList();
+                updatePlayerUI();
+                showToast(tr.favorite ? 'Добавлено в избранное' : 'Убрано из избранного');
+            }
+        }
+
+        function toggleFavoriteCurrent() {
+            const tr = tracks[state.currentTrackIndex];
+            if (tr) toggleFavoriteById(tr.id);
+        }
+
+        function toggleShuffle() {
+            triggerHaptic('light');
+            state.isShuffle = !state.isShuffle;
+            updateShuffleRepeatUI();
+        }
+
+        function toggleRepeat() {
+            triggerHaptic('light');
+            state.isRepeat = !state.isRepeat;
+            updateShuffleRepeatUI();
+        }
+
+        function updateShuffleRepeatUI() {
+            const sBtn = document.getElementById('shuffle-btn');
+            const rBtn = document.getElementById('repeat-btn');
+            sBtn.classList.toggle('accent-text', state.isShuffle);
+            sBtn.classList.toggle('text-zinc-500', !state.isShuffle);
+            rBtn.classList.toggle('accent-text', state.isRepeat);
+            rBtn.classList.toggle('text-zinc-500', !state.isRepeat);
+        }
+
+        function updatePlayerUI() {
+            const track = tracks[state.currentTrackIndex];
+            if (!track) return;
+
+            document.getElementById('mini-cover').src = track.cover;
+            document.getElementById('mini-title').textContent = track.title;
+            document.getElementById('mini-artist').textContent = track.artist;
+
+            const playIcon = state.isPlaying ? 'pause' : 'play';
+            document.getElementById('mini-play-btn').innerHTML = `<i data-lucide="${playIcon}" class="w-4 h-4 fill-current ${state.isPlaying ? '' : 'ml-0.5'}"></i>`;
+
+            const miniFav = document.getElementById('mini-fav-btn');
+            miniFav.classList.toggle('accent-text', track.favorite);
+            miniFav.innerHTML = `<i data-lucide="heart" class="w-4 h-4 ${track.favorite ? 'fill-current' : ''}"></i>`;
+
+            document.getElementById('full-cover').src = track.cover;
+            document.getElementById('full-title').textContent = track.title;
+            document.getElementById('full-artist').textContent = track.artist;
+            document.getElementById('full-album-name').textContent = track.album;
+            document.getElementById('audio-source-badge').textContent = track.audioUrl ? 'AUDIO FILE' : 'DEMO SYNTH';
+
+            document.getElementById('full-play-btn').innerHTML = `<i data-lucide="${playIcon}" class="w-6 h-6 fill-current ${state.isPlaying ? '' : 'ml-0.5'}"></i>`;
+
+            const fullFav = document.getElementById('full-fav-btn');
+            fullFav.classList.toggle('accent-text', track.favorite);
+            fullFav.innerHTML = `<i data-lucide="heart" class="w-4 h-4 ${track.favorite ? 'fill-current' : ''}"></i>`;
+
+            updateProgressUI();
+            lucide.createIcons();
+        }
+
+        function updateProgressUI() {
+            const track = tracks[state.currentTrackIndex];
+            if (!track) return;
+            const pct = track.duration > 0 ? Math.min(100, (state.currentTime / track.duration) * 100) : 0;
+
+            document.getElementById('mini-progress-bar').style.width = `${pct}%`;
+            document.getElementById('full-scrubber').value = pct;
+            document.getElementById('current-time-label').textContent = formatDuration(state.currentTime);
+            document.getElementById('total-time-label').textContent = formatDuration(track.duration);
+        }
+
+        function openNowPlayingModal() {
+            triggerHaptic('light');
+            document.getElementById('now-playing-modal').classList.add('open');
+        }
+
+        function closeNowPlayingModal() {
+            triggerHaptic('light');
+            document.getElementById('now-playing-modal').classList.remove('open');
+        }
+
+        // ==========================================
+        // 8. TRACK UPLOAD & CUSTOMIZATION HANDLERS
+        // ==========================================
+        function applyCoverPreset(style) {
+            triggerHaptic('light');
+            const titleVal = document.getElementById('upload-title').value || 'SV';
+            state.uploadCoverDataUrl = generateMinimalCover(titleVal, style);
+            document.getElementById('upload-cover-preview').src = state.uploadCoverDataUrl;
+        }
+
+        function handleCoverFileSelect(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                state.uploadCoverDataUrl = ev.target.result;
+                document.getElementById('upload-cover-preview').src = state.uploadCoverDataUrl;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleAudioFileSelect(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            if (state.uploadAudioObjectUrl) URL.revokeObjectURL(state.uploadAudioObjectUrl);
+            state.uploadAudioObjectUrl = URL.createObjectURL(file);
+
+            document.getElementById('audio-file-label').textContent = file.name;
+            document.getElementById('audio-file-sub').textContent = `${(file.size / (1024 * 1024)).toFixed(2)} МБ`;
+
+            const titleInput = document.getElementById('upload-title');
+            if (!titleInput.value) {
+                titleInput.value = file.name.replace(/\.[^/.]+$/, "");
+            }
+        }
+
+        function handleTrackUpload(e) {
+            e.preventDefault();
+            triggerHaptic('success');
+
+            const title = document.getElementById('upload-title').value.trim();
+            const artist = document.getElementById('upload-artist').value.trim();
+            const album = document.getElementById('upload-album').value.trim() || 'Синглы';
+            const urlInput = document.getElementById('upload-audio-url').value.trim();
+            const finalAudioUrl = state.uploadAudioObjectUrl || urlInput || null;
+
+            const newTrack = {
+                id: 't_' + Date.now(),
+                title,
+                artist,
+                album,
+                year: new Date().getFullYear().toString(),
+                duration: 180,
+                favorite: false,
+                cover: state.uploadCoverDataUrl,
+                audioUrl: finalAudioUrl,
+                synthPreset: { bpm: 122, rootFreq: 65.41, scale: [1, 1.189, 1.334, 1.498] }
+            };
+
+            tracks.unshift(newTrack);
+
+            document.getElementById('upload-form').reset();
+            state.uploadAudioObjectUrl = null;
+            document.getElementById('audio-file-label').textContent = 'Выбрать аудио с устройства';
+            document.getElementById('audio-file-sub').textContent = 'MP3, WAV, OGG, FLAC';
+            applyCoverPreset('monolith');
+
+            switchTab('home');
+            selectAndPlayTrack(newTrack.id);
+            showToast(`Добавлено: ${title}`);
+        }
+
+        function setBgTone(tone) {
+            triggerHaptic('light');
+            document.body.classList.remove('bg-obsidian', 'bg-carbon', 'bg-oled');
+            document.body.classList.add(`bg-${tone}`);
+
+            document.querySelectorAll('.bg-tone-btn').forEach(btn => {
+                const active = btn.dataset.bg === tone;
+                btn.classList.toggle('accent-bg', active);
+                btn.classList.toggle('bg-white/[0.04]', !active);
+                btn.classList.toggle('text-zinc-400', !active);
+            });
+        }
+
+        const THEMES = {
+            mono:    { name: 'Monochrome',   hex: '#e4e4e7', contrast: '#09090b', glow: 'rgba(255, 255, 255, 0.14)', soft: 'rgba(255, 255, 255, 0.08)' },
+            crimson: { name: 'Deep Crimson', hex: '#dc2626', contrast: '#ffffff', glow: 'rgba(220, 38, 38, 0.28)',  soft: 'rgba(220, 38, 38, 0.14)' },
+            steel:   { name: 'Cold Steel',   hex: '#60a5fa', contrast: '#09090b', glow: 'rgba(96, 165, 250, 0.25)', soft: 'rgba(96, 165, 250, 0.12)' },
+            amber:   { name: 'Warm Amber',   hex: '#d97706', contrast: '#ffffff', glow: 'rgba(217, 119, 6, 0.26)',  soft: 'rgba(217, 119, 6, 0.14)' }
+        };
+
+        function setAccentTheme(key) {
+            triggerHaptic('light');
+            const t = THEMES[key];
+            if (!t) return;
+
+            document.documentElement.style.setProperty('--accent', t.hex);
+            document.documentElement.style.setProperty('--accent-contrast', t.contrast);
+            document.documentElement.style.setProperty('--accent-glow', t.glow);
+            document.documentElement.style.setProperty('--accent-soft', t.soft);
+            document.getElementById('current-theme-name').textContent = t.name;
+
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                const active = btn.dataset.theme === key;
+                btn.style.borderColor = active ? t.hex : 'rgba(255, 255, 255, 0.07)';
+            });
+        }
+
+        function setCoverShape(radiusVal, key) {
+            triggerHaptic('light');
+            document.documentElement.style.setProperty('--cover-radius', radiusVal);
+
+            document.querySelectorAll('.shape-btn').forEach(btn => {
+                const active = btn.dataset.shape === key;
+                btn.classList.toggle('accent-bg', active);
+                btn.classList.toggle('bg-white/[0.04]', !active);
+                btn.classList.toggle('text-zinc-400', !active);
+            });
+        }
+
+        // ==========================================
+        // 9. SUBTLE SPECTRUM VISUALIZER
+        // ==========================================
+        function startVisualizerLoop() {
+            const canvas = document.getElementById('audio-visualizer-canvas');
+            const ctx = canvas.getContext('2d');
+            const barCount = 32;
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#e4e4e7';
+                const barWidth = (canvas.width / barCount) - 3;
+                const now = Date.now() / 160;
+
+                ctx.fillStyle = accentColor;
+                for (let i = 0; i < barCount; i++) {
+                    const h = state.isPlaying
+                        ? Math.max(3, (Math.sin(now + i * 0.45) * 0.5 + 0.5) * (Math.cos(now * 0.7 - i * 0.3) * 18 + 8))
+                        : 2;
+                    const x = i * (barWidth + 3);
+                    const y = (canvas.height - h) / 2;
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, barWidth, h, 2);
+                    ctx.fill();
+                }
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        // ==========================================
+        // 10. MODALS & TOAST
+        // ==========================================
+        function openBotGuideModal() {
+            triggerHaptic('light');
+            const statusEl = document.getElementById('sdk-status-text');
+            statusEl.textContent = tg?.initData ? 'Подключён' : 'Превью-режим (SDK готов)';
+            document.getElementById('bot-guide-modal').classList.remove('hidden');
+        }
+
+        function closeBotGuideModal() {
+            document.getElementById('bot-guide-modal').classList.add('hidden');
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-text').textContent = msg;
+            toast.classList.remove('opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.add('opacity-0'), 2000);
+        }
+
+        // ==========================================
+        // 11. BOOTSTRAP ON WINDOW LOAD
+        // ==========================================
+        window.onload = function() {
+            const savedLogo = getActiveSplashLogo();
+            applyLogoEverywhere(savedLogo);
+
+            document.getElementById('upload-cover-preview').src = state.uploadCoverDataUrl;
+            renderTrackList();
+            updatePlayerUI();
+            startVisualizerLoop();
+            lucide.createIcons();
+
+            // Launch splash animation on startup
+            playSplashSequence();
+        };
+    </script>
+</body>
+</html>
